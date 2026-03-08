@@ -90,9 +90,10 @@ def angle_from_accel(desired_accel: float, group_key: str,
     return theta
 
 
-def apply_actuator_error(theta: float) -> float:
-    """Add relative actuator error  e_actuator = 5 %."""
-    noise = np.random.uniform(-E_ACTUATOR, E_ACTUATOR)
+def apply_actuator_error(theta: float, error_frac: float | None = None) -> float:
+    """Add relative actuator error (default 5 %)."""
+    ef = E_ACTUATOR if error_frac is None else error_frac
+    noise = np.random.uniform(-ef, ef)
     return theta * (1.0 + noise)
 
 
@@ -159,7 +160,8 @@ FITTING_FORMULAE = {
 def compute_control_accels(u_desired: np.ndarray,
                            altitude_km: float | None = None,
                            V_sat: float | None = None,
-                           add_error: bool = True) -> np.ndarray:
+                           add_error: bool = True,
+                           error_frac: float | None = None) -> np.ndarray:
     """
     Full actuator pipeline: desired acceleration → plate angles → actual accel.
 
@@ -169,6 +171,7 @@ def compute_control_accels(u_desired: np.ndarray,
     altitude_km : float     Orbital altitude [km] (default: chief altitude).
     V_sat : float           Satellite velocity [m/s] (default: chief velocity).
     add_error : bool        Whether to add actuator operation error.
+    error_frac : float      Override actuator error fraction (default: E_ACTUATOR).
 
     Returns
     -------
@@ -190,7 +193,7 @@ def compute_control_accels(u_desired: np.ndarray,
             continue
         theta = angle_from_accel(u_clamped[i], gk, altitude_km, V_sat)
         if add_error:
-            theta = apply_actuator_error(theta)
+            theta = apply_actuator_error(theta, error_frac)
             theta = np.clip(theta, THETA_MIN, THETA_MAX)
         a_actual[i] = signs[i] * abs(
             _accel_from_angle(theta, gk, altitude_km, V_sat)

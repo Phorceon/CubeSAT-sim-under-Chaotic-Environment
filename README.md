@@ -19,7 +19,8 @@ The simulation reproduces **Figures 7–11** from the paper across three modes:
 ## Project Structure
 
 ```
-├── main.py                    # Simulation driver (3 modes)
+├── gui.py                     # Interactive GUI (Tkinter + matplotlib)
+├── main.py                    # CLI simulation driver (3 modes)
 ├── validate.py                # 77 validation tests against the paper
 ├── visualization.py           # Plotting routines for Figures 7–11
 ├── requirements.txt           # Python dependencies
@@ -52,10 +53,11 @@ The simulation reproduces **Figures 7–11** from the paper across three modes:
 ```bash
 pip install -r requirements.txt
 
-# Run all three simulation modes and generate Figures 7–11
-python main.py 1 2 3
+# Launch the interactive GUI
+python gui.py
 
-# Run only the controlled formation keeping (Figures 8–9)
+# Or run from the command line (all modes / specific modes)
+python main.py 1 2 3
 python main.py 2
 
 # Run the full validation suite (77 tests)
@@ -63,6 +65,19 @@ python validate.py
 ```
 
 Output figures are saved to `figures/`.
+
+## Interactive GUI
+
+Run `python gui.py` to open the parameter explorer. The left panel exposes every tunable variable — orbit elements, formation geometry, controller gains, actuator limits, sensor noise, and simulation duration. Check which modes to run, click **Run Simulation**, and results appear as interactive matplotlib tabs on the right.
+
+![GUI screenshot concept](figures/fig8_controlled_state.png)
+
+Things to try:
+- **Increase tracking errors** (e.g. εz = 50 m) to see longer convergence transients
+- **Reduce controller gains** (Kr = 1e-6) to observe underdamped oscillations
+- **Lower altitude** (a = 6628 km → 250 km) for stronger aerodynamic authority
+- **Increase orbits** to 10+ for long-term stability checks
+- **Set actuator error to 0%** vs 20% to see the effect of noisy actuators
 
 ## Simulation Parameters
 

@@ -315,7 +315,8 @@ def run_controlled():
         dv_meas = -eps_v + np.random.normal(0, GPS_VEL_SIGMA, 3)
 
         # J2 tidal disturbance evaluated dynamically along the reference trajectory
-        d_j2 = _j2_disturbance_eq14(sol_chief['oe'][k], rho_d)
+        rho_nom = np.array([500.0, 0.0, 0.0])   # nominal radial separation
+        d_j2 = _j2_disturbance_lvlh(sol_chief['oe'][k], rho_nom, omega)
 
         # Lyapunov control: feedback + feedforward
         u_fb = (A1 + KR) @ dr_meas + (A2 + KV) @ dv_meas
@@ -328,10 +329,10 @@ def run_controlled():
                                           add_error=True)
         control_hist[k] = a_actual
 
-        # Integrate CW dynamics + control (J2 cancellation handled by controller)
-        def rel_eom(t, s, u=a_actual):
+        # Integrate CW dynamics + constant J2 disturbance + control
+        def rel_eom(t, s, u=a_actual, d=d_j2):
             r, v = s[:3], s[3:]
-            return np.concatenate([v, A1 @ r + A2 @ v + u])
+            return np.concatenate([v, A1 @ r + A2 @ v + d + u])
 
         state0 = np.concatenate([rho, rho_dot])
         sol = solve_ivp(rel_eom, (0, step_dt), state0,

@@ -152,7 +152,8 @@ def run_simulation(params: dict, modes: list[str], log_fn=None):
             dv_m = -eps_v + np.random.normal(0, gps_vel_sig, 3)
 
             # J2 tidal disturbance evaluated dynamically along the reference trajectory
-            d_j2 = _j2_disturbance_eq14(sol_chief['oe'][k], rho_d)
+            rho_nom = np.array([500.0, 0.0, 0.0])
+            d_j2 = _j2_disturbance_lvlh(sol_chief['oe'][k], rho_nom, n_chief)
             u_fb = (A1 + KR) @ dr_m + (A2 + KV) @ dv_m
             u_ideal = u_fb - d_j2
             u_cl = np.clip(u_ideal, -limits, limits)
@@ -160,8 +161,8 @@ def run_simulation(params: dict, modes: list[str], log_fn=None):
                                            add_error=True, error_frac=act_err)
             ctrl_h[k] = a_act
 
-            def eom(t, s, _u=a_act):
-                return np.concatenate([s[3:], A1 @ s[:3] + A2 @ s[3:] + _u])
+            def eom(t, s, _u=a_act, _d=d_j2):
+                return np.concatenate([s[3:], A1 @ s[:3] + A2 @ s[3:] + _d + _u])
 
             sol = solve_ivp(eom, (0, step_dt), np.concatenate([rho, rho_dot]),
                             method='DOP853', t_eval=[step_dt],

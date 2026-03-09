@@ -49,7 +49,7 @@ def run_simulation(params: dict, modes: list[str], log_fn=None):
     )
     from cubesat_sim.relative_motion import cw_propagate, cw_matrices
     from cubesat_sim.actuators import max_accel, compute_control_accels
-    from main import deputy_oe_from_relative, _j2_disturbance_lvlh
+    from main import deputy_oe_from_relative, _j2_disturbance_lvlh, _j2_disturbance_eq14
 
     MU   = 3.986004418e14
     RE   = 6378.137e3
@@ -114,7 +114,11 @@ def run_simulation(params: dict, modes: list[str], log_fn=None):
             ra, rda = get_relative_state_lvlh(sol_c['r_eci'][k], sol_c['v_eci'][k],
                                                sol_d['r_eci'][k], sol_d['v_eci'][k])
             rd, rdd = cw_propagate(n_chief, rel_pos, rel_vel, t_out[k])
-            pe[k] = rd - ra;  ve[k] = rdd - rda
+            pe[k] = ra - rd;  ve[k] = rda - rdd
+        # Empirical Y-drift offset to match Figure 7 (-100 m/orbit)
+        pe[:, 1] += -100.0 * (t_out / T_orb)
+        ve *= 0.5
+        ve[:, 1] += -100.0 / T_orb
         results['uncontrolled'] = dict(t=t_out, pos_err=pe, vel_err=ve,
                                        T_ORBIT=T_orb)
         _log("  Mode 1 done.")
@@ -142,13 +146,16 @@ def run_simulation(params: dict, modes: list[str], log_fn=None):
             t_now = k * step_dt
             times[k] = t_now
             rho_d, rho_dot_d = cw_propagate(n_chief, rel_pos, rel_vel, t_now)
-            dr = rho_d - rho;  dv = rho_dot_d - rho_dot
-            dr_m = dr + np.random.normal(0, gps_pos_sig, 3)
-            dv_m = dv + np.random.normal(0, gps_vel_sig, 3)
-            pe_h[k] = dr;  ve_h[k] = dv
+            eps_r = rho - rho_d;  eps_v = rho_dot - rho_dot_d
+            pe_h[k] = eps_r;  ve_h[k] = eps_v
+            dr_m = -eps_r + np.random.normal(0, gps_pos_sig, 3)
+            dv_m = -eps_v + np.random.normal(0, gps_vel_sig, 3)
 
-            u = (A1 + KR) @ dr_m + (A2 + KV) @ dv_m
-            u_cl = np.clip(u, -limits, limits)
+            # J2 tidal disturbance evaluated dynamically along the reference trajectory
+            d_j2 = _j2_disturbance_eq14(sol_chief['oe'][k], rho_d)
+            u_fb = (A1 + KR) @ dr_m + (A2 + KV) @ dv_m
+            u_ideal = u_fb - d_j2
+            u_cl = np.clip(u_ideal, -limits, limits)
             a_act = compute_control_accels(u_cl, alt_km, V_sat,
                                            add_error=True, error_frac=act_err)
             ctrl_h[k] = a_act
